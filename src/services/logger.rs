@@ -27,7 +27,6 @@ impl Logger {
             "{} | LOG STARTED | Starting balance: {:.6}\n",
             timestamp, balance
         );
-
         print!("{}", log_line);
 
         let mut file = OpenOptions::new()

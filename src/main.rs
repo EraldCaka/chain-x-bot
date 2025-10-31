@@ -103,14 +103,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 wallet.last_buy_price = buy_price;
                 wallet.balance_usd = 0.0;
                 wallet.position_open = true;
-
                 logger.log_trade(&config.bot.symbol, "BUY", buy_price, buy_amount, 0.0);
 
                 match backpack.bid_market(&config.bot.backpack_symbol, &buy_amount.to_string()) {
                     Ok(resp) => println!("Buy executed @ {:.2}: {:?}", buy_price, resp),
                     Err(err) => eprintln!("Buy failed: {}", err),
                 }
-
                 last_trade_time = Instant::now();
             } else if sell_signal && wallet.position_open {
                 let sell_price = current_price;
@@ -126,11 +124,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 wallet.position_open = false;
 
                 logger.log_trade(&config.bot.symbol, "SELL", sell_price, 0.0, profit);
-
-                println!(
-                    "Sold @ {:.2} | Profit: {:+.2} USD ({:+.2}%) | Total PnL: {:+.2}",
-                    sell_price, profit, percent, wallet.realized_pnl
-                );
 
                 match backpack.ask_market(&config.bot.backpack_symbol, &trade_amount.to_string()) {
                     Ok(resp) => println!("Sell executed: {:?}", resp),
