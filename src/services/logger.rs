@@ -28,10 +28,8 @@ impl Logger {
             timestamp, balance
         );
 
-        // Print to terminal
         print!("{}", log_line);
 
-        // Append to file
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
