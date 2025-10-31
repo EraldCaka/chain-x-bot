@@ -1,0 +1,8 @@
+{
+  "symbol": "ETHUSDC",
+  "backpackSymbol": "ETH_USDC",
+  "balance": 15.0,
+  "period": "1m",
+  "recurrence": 1,
+  "trade": 0.0001
+}
