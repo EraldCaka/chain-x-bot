@@ -35,6 +35,7 @@
 ## Api Documentation
 
 [Backpack API Documentation](https://docs.backpack.exchange)
+
 [Binance API Documentation](https://binance-docs.github.io/apidocs/spot/en/#general-api-information)
 
 ## Environment Variables
