@@ -2,16 +2,24 @@ use crate::models::candle::Candle;
 
 pub struct Wallet {
     pub symbol: String,
-    pub initial_price: String,
     pub initial_balance: f64,
+    pub balance_usd: f64,
+    pub coin_amount: f64,
+    pub last_buy_price: f64,
+    pub realized_pnl: f64,
+    pub position_open: bool,
 }
 
 impl Wallet {
-    pub fn new(initial_balance: f64, symbol: String, initial_price: String) -> Self {
+    pub fn new(initial_balance: f64, symbol: String, _initial_price: String) -> Self {
         Wallet {
             symbol,
-            initial_price,
             initial_balance,
+            balance_usd: initial_balance,
+            coin_amount: 0.0,
+            last_buy_price: 0.0,
+            realized_pnl: 0.0,
+            position_open: false,
         }
     }
 
@@ -61,7 +69,6 @@ impl Wallet {
 
         let ema12 = ema(closes, 12);
         let ema26 = ema(closes, 26);
-
         let macd_line_series: Vec<f64> =
             ema12.iter().zip(ema26.iter()).map(|(a, b)| a - b).collect();
 
@@ -71,6 +78,7 @@ impl Wallet {
 
         (macd_line, signal_line)
     }
+
     pub fn stochastic(&self, candles: &[Candle], period: usize) -> f64 {
         if candles.len() < period {
             return 50.0;
@@ -86,5 +94,15 @@ impl Wallet {
         } else {
             (close - low) / (high - low) * 100.0
         }
+    }
+
+    pub fn unrealized_pnl(&self, current_price: f64) -> (f64, f64) {
+        if !self.position_open {
+            return (0.0, 0.0);
+        }
+
+        let unrealized = (current_price - self.last_buy_price) * self.coin_amount;
+        let percent = (unrealized / (self.last_buy_price * self.coin_amount)) * 100.0;
+        (unrealized, percent)
     }
 }

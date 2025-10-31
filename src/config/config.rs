@@ -10,6 +10,7 @@ pub struct BotConfig {
     pub period: String,
     pub recurrence: u64,
     pub trade: f64,
+    pub timeout: u64,
 }
 #[derive(Debug)]
 pub struct Config {
