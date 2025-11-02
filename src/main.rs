@@ -45,8 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let logger = Logger::new("trades.log", config.bot.balance);
-    let mut last_trade_time = Instant::now() - Duration::from_secs(600);
-    let trade_cooldown = Duration::from_secs(config.bot.timeout);
+    // let mut last_trade_time = Instant::now() - Duration::from_secs(600);
+    // let trade_cooldown = Duration::from_secs(config.bot.timeout);
 
     loop {
         let binance_candles = match binance.get_historical_klines(
@@ -86,57 +86,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         let current_price = *closes.last().unwrap_or(&0.0);
-        let trade_amount = 0.0001;
-
+        let trade_amount = config.bot.trade;
+        let has_open_position = wallet.coin_amount > 0.0;
         let bullish_cross = macd_line > signal_line;
         let bearish_cross = macd_line < signal_line;
 
-        let buy_signal = rsi < 40.0 && bullish_cross && stochastic < 51.0 && stochastic > 5.0;
+        // println!(
+        //     "rsi: {} bullish {} bearish {} stochastic {}",
+        //     rsi, bullish_cross, bearish_cross, stochastic
+        // );
+        //
+        let buy_signal = rsi < 40.0 && bullish_cross && stochastic < 40.0 && stochastic > 5.0;
         let sell_signal = rsi > 60.0 && bearish_cross && stochastic > 75.0 && stochastic < 95.0;
+        let buy_price = current_price;
+        let risk = buy_price * 0.005; // 0.5%
 
-        if last_trade_time.elapsed() >= trade_cooldown {
-            if buy_signal && !wallet.position_open {
-                let buy_price = current_price;
-                let buy_amount = trade_amount;
+        if has_open_position {
+            if current_price <= wallet.stop_loss {
+                let loss = (current_price - wallet.last_buy_price) * wallet.coin_amount;
+                let percent = (loss / (wallet.last_buy_price * wallet.coin_amount)) * 100.0;
+                wallet.realized_pnl += loss;
+                wallet.balance_usd += wallet.coin_amount * current_price;
+                logger.log_trade(
+                    &config.bot.symbol,
+                    "STOP LOSS",
+                    current_price,
+                    wallet.coin_amount,
+                    percent,
+                );
+                match backpack
+                    .ask_market(&config.bot.backpack_symbol, &config.bot.trade.to_string())
+                {
+                    Ok(resp) => println!("Stop loss executed @ {:.2}: {:?}", current_price, resp),
+                    Err(err) => eprintln!("Stop loss sell failed: {}", err),
+                }
+            } else if current_price >= wallet.take_profit && sell_signal {
+                let profit = (current_price - wallet.last_buy_price) * wallet.coin_amount;
+                let percent = (profit / (wallet.last_buy_price * wallet.coin_amount)) * 100.0;
+                wallet.realized_pnl += profit;
+                wallet.balance_usd += wallet.coin_amount * current_price;
+                logger.log_trade(
+                    &config.bot.symbol,
+                    "TAKE PROFIT",
+                    current_price,
+                    config.bot.trade,
+                    percent,
+                );
+                match backpack
+                    .ask_market(&config.bot.backpack_symbol, &config.bot.trade.to_string())
+                {
+                    Ok(resp) => println!("Take profit executed @ {:.2}: {:?}", current_price, resp),
+                    Err(err) => eprintln!("Take profit sell failed: {}", err),
+                }
+            }
+        }
 
-                wallet.coin_amount = buy_amount;
+        if buy_signal {
+            let buy_amount = trade_amount;
+            let cost = buy_price * buy_amount;
+            if wallet.balance_usd >= cost {
+                wallet.take_profit = buy_price + (risk * 2.0);
                 wallet.last_buy_price = buy_price;
-                wallet.balance_usd = 0.0;
-                wallet.position_open = true;
+                wallet.coin_amount = buy_amount;
+                wallet.balance_usd -= cost;
+                wallet.stop_loss = buy_price - risk;
                 logger.log_trade(&config.bot.symbol, "BUY", buy_price, buy_amount, 0.0);
-
-                match backpack.bid_market(&config.bot.backpack_symbol, &buy_amount.to_string()) {
+                match backpack
+                    .bid_market(&config.bot.backpack_symbol, &config.bot.trade.to_string())
+                {
                     Ok(resp) => println!("Buy executed @ {:.2}: {:?}", buy_price, resp),
                     Err(err) => eprintln!("Buy failed: {}", err),
                 }
-                last_trade_time = Instant::now();
-            } else if sell_signal && wallet.position_open {
-                let sell_price = current_price;
-                let sell_value = wallet.coin_amount * sell_price;
-                let buy_value = wallet.coin_amount * wallet.last_buy_price;
-
-                let profit = sell_value - buy_value;
-                let percent = (profit / buy_value) * 100.0;
-
-                wallet.realized_pnl += profit;
-                wallet.balance_usd = sell_value;
-                wallet.coin_amount = 0.0;
-                wallet.position_open = false;
-
-                logger.log_trade(&config.bot.symbol, "SELL", sell_price, 0.0, profit);
-
-                match backpack.ask_market(&config.bot.backpack_symbol, &trade_amount.to_string()) {
-                    Ok(resp) => println!("Sell executed: {:?}", resp),
-                    Err(err) => eprintln!("Sell failed: {}", err),
-                }
-
-                last_trade_time = Instant::now();
+            } else {
+                println!("Not enough balance to buy");
             }
-        } else {
-            let remaining = trade_cooldown.as_secs() - last_trade_time.elapsed().as_secs();
-            println!("Cooldown active — next trade in {}s", remaining);
         }
-
         thread::sleep(Duration::from_secs(config.bot.recurrence));
     }
 }

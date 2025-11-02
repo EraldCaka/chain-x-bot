@@ -8,6 +8,8 @@ pub struct Wallet {
     pub last_buy_price: f64,
     pub realized_pnl: f64,
     pub position_open: bool,
+    pub stop_loss: f64,
+    pub take_profit: f64,
 }
 
 impl Wallet {
@@ -16,10 +18,12 @@ impl Wallet {
             symbol,
             initial_balance,
             balance_usd: initial_balance,
-            coin_amount: 0.0,
+            coin_amount: 0.009,
             last_buy_price: 0.0,
             realized_pnl: 0.0,
             position_open: false,
+            stop_loss: 0.0,
+            take_profit: 0.0,
         }
     }
 
